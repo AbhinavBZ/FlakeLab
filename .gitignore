@@ -218,3 +218,23 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# FlakeLab specific
+
+# Generated experiment results
+results/*
+!results/.gitkeep
+
+# Temporary Docker files
+.docker/
+
+# Local experiment configurations
+configs/local.yaml
+
+# IDE settings
+.vscode/
+.idea/
+
+# Temporary logs
+*.log
+
