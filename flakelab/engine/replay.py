@@ -21,7 +21,7 @@ def load_experiment():
         return json.load(file), project_root
 
 
-def replay_seed(seed):
+def replay_seed(seed,attempt=None):
     """Replay a specific random seed from the previous experiment."""
     experiment, project_root = load_experiment()
 
@@ -44,9 +44,12 @@ def replay_seed(seed):
 
     replay_dir = project_root / "results" / "replays"
     replay_dir.mkdir(parents=True, exist_ok=True)
+    suffix = f"_attempt_{attempt}" if attempt is not None else ""
 
-    report_path = replay_dir / f"replay_seed_{seed}.json"
-    log_path = replay_dir / f"replay_seed_{seed}.log"
+    report_path = replay_dir / f"replay_seed_{seed}{suffix}.json" 
+    log_path = replay_dir / f"replay_seed_{seed}{suffix}.log"
+    replay_order_path = (replay_dir / f"replay_seed_{seed}{suffix}_order.json")
+    output_path = (replay_dir / f"comparison_seed_{seed}{suffix}.json")
 
     command = [
         sys.executable,
@@ -57,6 +60,8 @@ def replay_seed(seed):
         f"--random-order-seed={seed}",
         "--json-report",
         f"--json-report-file={report_path}",
+        "-p", "flakelab.engine.order_tracker",
+        f"--order-tracker-output={replay_order_path}",
     ]
 
     print(f"\nReplaying experiment with seed: {seed}")
@@ -79,6 +84,11 @@ def replay_seed(seed):
         process.stdout + "\n" + process.stderr,
         encoding="utf-8"
     )
+    replay_order = []
+    if replay_order_path.exists():
+        replay_order = json.loads(
+            replay_order_path.read_text(encoding="utf-8")
+        )
 
     if report_path.exists():
         replay_report = json.loads(
@@ -106,16 +116,31 @@ def replay_seed(seed):
             "replay": replay_result,
             "same_outcome": original_result == replay_result,
         })
-
+    original_failed_tests = {
+        name for name, outcome in original_outcomes.items()
+        if outcome in {"failed", "error"}
+    }
+    replay_failed_tests = {
+        name for name, outcome in replay_outcomes.items()
+        if outcome in {"failed", "error"}
+    }
+    reproduced_tests = sorted(
+        original_failed_tests & replay_failed_tests
+    )
     replay_result = {
         "seed": seed,
         "duration_seconds": duration,
         "original_return_code": original_run["return_code"],
         "replay_return_code": process.returncode,
         "comparisons": comparisons,
-        "failure_reproduced": (
-            original_run["return_code"] != 0
-            and process.returncode != 0
+        "failure_reproduced": bool(reproduced_tests),
+        "reproduced_tests": reproduced_tests,
+        "original_execution_order": original_run.get(
+            "execution_order", []
+        ),
+        "replay_execution_order": replay_order, 
+        "execution_order_matches": (
+            original_run.get("execution_order", []) == replay_order
         ),
         "log_file": str(log_path),
     }
