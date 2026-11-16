@@ -1,0 +1,7 @@
+
+pytest
+pytest-random-order
+pytest-json-report
+PyYAML
+pandas
+matplotlib
